@@ -25,6 +25,8 @@ class DreamChaser extends HTMLElement {
     window.addEventListener('resize', this.handleResize);
     this.handleScroll = () => this.animateText();
     window.addEventListener('scroll', this.handleScroll);
+    // Ensure initial animation runs after a slight delay
+    setTimeout(() => this.animateText(), 100);
   }
 
   disconnectedCallback() {
@@ -50,7 +52,7 @@ class DreamChaser extends HTMLElement {
     this.elements.forEach((element) => {
       const movement = -(topDistance * element.dataset.speed * animationSpeed);
       this.move(element, movement);
-      this.fadeOut(element, topDistance, animationDistance);
+      this.fadeOut(element, topDistance, animationFadeDistance); // Use fadeDistance for opacity
     });
   }
 
@@ -62,15 +64,12 @@ class DreamChaser extends HTMLElement {
     const fontColor = this.getAttribute('font-color') || '#E9C46A'; // Golden
     const textAlignment = this.getAttribute('text-alignment') || 'center';
     const backgroundColor = this.getAttribute('background-color') || '#0A3D62'; // Dark teal
-    const animationSpeed = parseFloat(this.getAttribute('animation-speed')) || 2;
-    const animationDistance = parseFloat(this.getAttribute('animation-distance')) || 300;
-    const animationFadeDistance = parseFloat(this.getAttribute('animation-fade-distance')) || 200;
 
     // Clear previous elements
     this.elements = [];
 
-    // Split text into letters, filter out spaces and newlines
-    const letters = text.split('').filter(letter => letter !== ' ' && letter !== '\n');
+    // Split text into letters, preserving spaces
+    const letters = text.split('');
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -94,7 +93,6 @@ class DreamChaser extends HTMLElement {
 
         .headline {
           margin: 0;
-          opacity: 0;
           font-family: ${fontFamily}, sans-serif;
           font-weight: 700;
           color: ${fontColor};
@@ -111,6 +109,7 @@ class DreamChaser extends HTMLElement {
           display: inline-block;
           padding: 0 5px;
           transition: transform 0.1s ease, opacity 0.1s ease;
+          opacity: 1; /* Start visible */
         }
       </style>
       <div class="container">
@@ -119,11 +118,12 @@ class DreamChaser extends HTMLElement {
     `;
 
     const headline = this.shadowRoot.querySelector('.headline');
+    headline.innerHTML = ''; // Clear any previous content
     letters.forEach((letter) => {
       const element = document.createElement('span');
       element.classList.add('letter');
       element.innerText = letter;
-      element.dataset.speed = Math.random().toFixed(2); // Random speed between 0 and 1
+      element.dataset.speed = letter === ' ' ? 0 : Math.random().toFixed(2); // Spaces don’t move
       headline.appendChild(element);
       this.elements.push(element);
     });
