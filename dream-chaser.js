@@ -3,6 +3,8 @@ class DreamChaser extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.elements = [];
+    this.isVisible = false;
+    this.observer = null;
   }
 
   static get observedAttributes() {
@@ -23,15 +25,60 @@ class DreamChaser extends HTMLElement {
     this.render();
     this.handleResize = () => this.render();
     window.addEventListener('resize', this.handleResize);
-    this.handleScroll = () => this.animateText();
+    this.handleScroll = () => {
+      if (this.isVisible) {
+        this.animateText();
+      }
+    };
     window.addEventListener('scroll', this.handleScroll);
-    // Ensure initial animation runs after a slight delay
-    setTimeout(() => this.animateText(), 100);
+    
+    // Set up Intersection Observer to detect when element enters viewport
+    this.setupIntersectionObserver();
   }
 
   disconnectedCallback() {
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('scroll', this.handleScroll);
+    
+    // Clean up the observer
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+  }
+
+  setupIntersectionObserver() {
+    // Create observer with options
+    const options = {
+      root: null, // Use viewport as root
+      rootMargin: '0px',
+      threshold: 0.1 // Trigger when at least 10% of the element is visible
+    };
+
+    this.observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        // Update visibility state
+        this.isVisible = entry.isIntersecting;
+        
+        // If element just became visible, start animation
+        if (this.isVisible) {
+          this.animateText();
+        } else {
+          // Reset animation when not visible
+          this.resetAnimation();
+        }
+      });
+    }, options);
+
+    // Start observing the element
+    this.observer.observe(this);
+  }
+
+  resetAnimation() {
+    // Reset all elements to their initial state
+    this.elements.forEach((element) => {
+      element.style.transform = 'translate3d(0, 0, 0)';
+      element.style.opacity = 1;
+    });
   }
 
   move(element, distance) {
@@ -44,15 +91,25 @@ class DreamChaser extends HTMLElement {
   }
 
   animateText() {
-    const topDistance = window.pageYOffset;
+    // Only animate if element is visible
+    if (!this.isVisible) return;
+    
+    const elementRect = this.getBoundingClientRect();
+    const elementTop = elementRect.top;
+    const viewportHeight = window.innerHeight;
+    
+    // Calculate how far the element is from the top of the viewport
+    // Normalized to start at 0 when element enters viewport
+    const effectiveScrollDistance = Math.max(0, -elementTop);
+    
     const animationSpeed = parseFloat(this.getAttribute('animation-speed')) || 2;
     const animationDistance = parseFloat(this.getAttribute('animation-distance')) || 300;
     const animationFadeDistance = parseFloat(this.getAttribute('animation-fade-distance')) || 200;
 
     this.elements.forEach((element) => {
-      const movement = -(topDistance * element.dataset.speed * animationSpeed);
+      const movement = -(effectiveScrollDistance * element.dataset.speed * animationSpeed);
       this.move(element, movement);
-      this.fadeOut(element, topDistance, animationFadeDistance); // Use fadeDistance for opacity
+      this.fadeOut(element, effectiveScrollDistance, animationFadeDistance);
     });
   }
 
@@ -108,7 +165,7 @@ class DreamChaser extends HTMLElement {
         .letter {
           display: inline-block;
           padding: 0 5px;
-          transition: transform 0.1s ease, opacity 0.1s ease;
+          transition: transform 0.3s ease, opacity 0.3s ease;
           opacity: 1; /* Start visible */
         }
       </style>
@@ -123,13 +180,16 @@ class DreamChaser extends HTMLElement {
       const element = document.createElement('span');
       element.classList.add('letter');
       element.innerText = letter;
-      element.dataset.speed = letter === ' ' ? 0 : Math.random().toFixed(2); // Spaces don’t move
+      element.dataset.speed = letter === ' ' ? 0 : Math.random().toFixed(2); // Spaces don't move
       headline.appendChild(element);
       this.elements.push(element);
     });
 
-    // Trigger initial animation
-    this.animateText();
+    // If we already have an observer, disconnect and reconnect
+    if (this.observer) {
+      this.observer.disconnect();
+      this.setupIntersectionObserver();
+    }
   }
 }
 
